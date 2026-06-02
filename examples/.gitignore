@@ -1,0 +1,4 @@
+# wayland-scanner output + built binary
+ext-hotkey-v1-client-protocol.h
+ext-hotkey-v1-protocol.c
+ext-hotkey-demo
