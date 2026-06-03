@@ -13,23 +13,35 @@
 #include <stdio.h>
 #include <string.h>
 #include <wayland-client.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
+#include <xkbcommon/xkbcommon.h>
 
-/* Keysyms use the X11/keysym numbering; for printable ASCII the value is the
- * ASCII code, so 0x062 is 'b' (XKB_KEY_b under the xkb_v1 keymap format). */
-#define TRIGGER_KEYSYM 0x062 /* 'b' */
 #define TRIGGER_MODS                                                           \
   (EXT_HOTKEY_MANAGER_V1_MODIFIERS_SUPER | EXT_HOTKEY_MANAGER_V1_MODIFIERS_CTRL)
 
 static struct ext_hotkey_manager_v1 *manager;
 
-static const char *reason_str(uint32_t reason) {
+static const char *deny_reason_str(uint32_t reason) {
   switch (reason) {
-  case EXT_HOTKEY_V1_REASON_ALREADY_BOUND:
+  case EXT_HOTKEY_V1_DENY_REASON_ALREADY_BOUND:
     return "already_bound";
-  case EXT_HOTKEY_V1_REASON_NOT_PERMITTED:
+  case EXT_HOTKEY_V1_DENY_REASON_NOT_PERMITTED:
     return "not_permitted";
-  case EXT_HOTKEY_V1_REASON_INVALID:
+  case EXT_HOTKEY_V1_DENY_REASON_INVALID:
     return "invalid";
+  default:
+    return "unknown";
+  }
+}
+
+static const char *revoke_reason_str(uint32_t reason) {
+  switch (reason) {
+  case EXT_HOTKEY_V1_REVOKE_REASON_REMOVED:
+    return "removed";
+  case EXT_HOTKEY_V1_REVOKE_REASON_SUPERSEDED:
+    return "superseded";
+  case EXT_HOTKEY_V1_REVOKE_REASON_NOT_PERMITTED:
+    return "not_permitted";
   default:
     return "unknown";
   }
@@ -41,16 +53,24 @@ static void hk_bound(void *data, struct ext_hotkey_v1 *hk) {
   printf("bound: hotkey is active\n");
 }
 
-static void hk_denied(void *data, struct ext_hotkey_v1 *hk, uint32_t reason) {
+static void hk_denied(void *data, struct ext_hotkey_v1 *hk, uint32_t reason,
+                      const char *message) {
   (void)data;
   (void)hk;
-  printf("denied: %s\n", reason_str(reason));
+  if (message && message[0])
+    printf("denied: %s (%s)\n", deny_reason_str(reason), message);
+  else
+    printf("denied: %s\n", deny_reason_str(reason));
 }
 
-static void hk_revoked(void *data, struct ext_hotkey_v1 *hk, uint32_t reason) {
+static void hk_revoked(void *data, struct ext_hotkey_v1 *hk, uint32_t reason,
+                       const char *message) {
   (void)data;
   (void)hk;
-  printf("revoked: %s\n", reason_str(reason));
+  if (message && message[0])
+    printf("revoked: %s (%s)\n", revoke_reason_str(reason), message);
+  else
+    printf("revoked: %s\n", revoke_reason_str(reason));
 }
 
 static void hk_pressed(void *data, struct ext_hotkey_v1 *hk, uint32_t serial,
@@ -113,9 +133,16 @@ int main(void) {
   }
 
   struct ext_hotkey_v1 *hotkey = ext_hotkey_manager_v1_bind(
-      manager, TRIGGER_KEYSYM, TRIGGER_MODS, NULL /* all seats */,
+      manager, XKB_KEY_b, TRIGGER_MODS, NULL /* all seats */,
       "com.example.ext-hotkey-demo", "Demo hotkey");
+
+  // should fail by default on niri: already bound
+  struct ext_hotkey_v1 *altTabHotkey = ext_hotkey_manager_v1_bind(
+      manager, XKB_KEY_Tab, EXT_HOTKEY_MANAGER_V1_MODIFIERS_ALT,
+      NULL /* all seats */, "com.example.ext-hotkey-demo", "");
+
   ext_hotkey_v1_add_listener(hotkey, &hk_listener, NULL);
+  ext_hotkey_v1_add_listener(altTabHotkey, &hk_listener, NULL);
 
   printf("requested Super+Ctrl+B; waiting for events (Ctrl-C to quit)...\n");
 
