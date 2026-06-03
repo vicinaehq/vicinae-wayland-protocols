@@ -1,61 +1,104 @@
 # ext-hotkey
 
-A small Wayland protocol that lets an application bind its own global hotkeys:
-pick a key combination, get told when it's pressed. The same thing apps already
-do on Windows, macOS and X11.
+A wayland protocol that lets an application bind its own global hotkeys: it picks a key combination, request to bind to it, and if it's successful, get noticied when it gets pressed/released.
+
+## At a glance
+
+The whole API is one request and a handful of callbacks: 
+
+```c
+static const uint32_t super_ctrl_b_mods =
+    EXT_HOTKEY_MANAGER_V1_MODIFIERS_SUPER | EXT_HOTKEY_MANAGER_V1_MODIFIERS_CTRL;
+
+static struct ext_hotkey_v1 *register_launcher_hotkey(
+    struct ext_hotkey_manager_v1 *manager) {
+    struct ext_hotkey_v1 *hotkey = ext_hotkey_manager_v1_bind(
+        manager, XKB_KEY_b, super_ctrl_b_mods, NULL,
+        "com.example.app", "Toggle the launcher");
+    ext_hotkey_v1_add_listener(hotkey, &launcher_listener, NULL);
+    return hotkey;
+}
+
+static void on_bound(void *data, struct ext_hotkey_v1 *hotkey) {
+    set_hotkey_active(true);
+}
+
+static void on_pressed(void *data, struct ext_hotkey_v1 *hotkey,
+                       uint32_t serial, uint32_t time) {
+    toggle_launcher(serial);
+}
+
+static void on_released(void *data, struct ext_hotkey_v1 *hotkey,
+                        uint32_t serial, uint32_t time) {
+}
+
+static void on_denied(void *data, struct ext_hotkey_v1 *hotkey,
+                      uint32_t reason, const char *message) {
+    printf("hotkey denied (reason %u): %s\n", reason, message);
+    ext_hotkey_v1_destroy(hotkey);
+}
+
+static void on_revoked(void *data, struct ext_hotkey_v1 *hotkey,
+                       uint32_t reason, const char *message) {
+    set_hotkey_active(false);
+    printf("hotkey revoked (reason %u): %s\n", reason, message);
+    ext_hotkey_v1_destroy(hotkey);
+}
+```
+
+To rebind, destroy the object and bind the new combination. There is no separate
+reconfigure step. The full runnable client is in [`../examples`](../examples).
 
 ## The problem
 
-Everywhere else this is a non-issue. The app says "let me know when Super+Space is
-pressed" and the OS does it. Wayland took that away and never gave back an
-equivalent, so a lot of apps that rely on it (launchers, clipboard managers,
-push-to-talk, media controls) either can't offer the feature or have to fake it
-with ugly workarounds. Vicinae runs into it constantly: you can pop the launcher
-open, but you can't put a hotkey directly on one of its commands.
+On Windows, macOS and X11 an application registers a key combination with the OS
+and is notified when it is pressed. Wayland has no general equivalent.
+Applications that depend on global hotkeys (launchers, clipboard managers,
+push-to-talk, media controls) either cannot offer the feature or resort to
+workarounds. Vicinae hits this directly: it can open the launcher, but cannot
+bind a hotkey to an individual launcher command.
 
 ## Why the existing options aren't enough
 
-Wayland does have a couple of ways to register "global shortcuts" today, and they
-all make the same call, which is the one that breaks things: the user picks the
-trigger, not the app.
+Wayland already has a couple of ways to register global shortcuts. They share one
+design decision that does not fit this use case: the user picks the trigger, not
+the application.
 
 ### The desktop portal
 
 xdg-desktop-portal's [GlobalShortcuts interface](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html)
-has the app register a named action and then lets the user (or the compositor)
-decide which key fires it. So the app
-can't ship a sane default, can't offer its own "change this shortcut" setting, and
-can't really remove a binding once it exists, since it outlives the app. Rebinding
-usually throws up a system dialog, and support across compositors is spotty
-anyway.
+has the application register a named action; the user or compositor then decides
+which key fires it. The application cannot ship a default binding, cannot manage
+the binding from its own settings, and cannot remove a binding once created,
+because the binding outlives the application. Rebinding typically opens a system
+dialog, and support across compositors is inconsistent.
 
 ### Compositor protocols
 
 Hyprland's [global-shortcuts protocol](https://wayland.app/protocols/hyprland-global-shortcuts-v1)
 and the long-running [action-binder RFC](https://gitlab.freedesktop.org/wayland/wayland-protocols/-/merge_requests/216)
-are the same idea: the app exposes anonymous actions and the user binds them to
-keys in compositor config. The app still doesn't own its keys, so it's stuck with the
-same limitations.
+follow the same model: the application exposes anonymous actions and the user
+binds them to keys in compositor configuration. The application still does not own
+its triggers, so the same limitations apply.
 
-The real cost of all this is on the app's UX. The user has to leave the app to
-set a shortcut up (edit a compositor config file, or click through a system
-dialog), and the app can't present the simple "click here, press your keys" box it
-shows on every other platform. The feature ends up feeling broken or second-class,
-which is exactly the kind of thing that makes people write Linux off.
+The cost falls on the application's UX. Setting up a shortcut requires the user to
+leave the application, either by editing compositor configuration or going through
+a system dialog, and the application cannot offer the in-app key-capture control
+it provides on other platforms.
 
 ## What this does instead
 
-The goal is to keep all of that inside the app and out of the user's way: setting
-a global shortcut should be a normal part of the app's own UI, and the protocol
-itself should be invisible.
+This protocol keeps shortcut configuration inside the application. Setting a
+global shortcut is part of the application's own UI, and the protocol stays out
+of the way.
 
-So the app asks for a specific key combination and the compositor either accepts
-it or says no, with a reason. The app owns the binding and can change it whenever,
-straight from its own settings, with nothing left behind and no dialog in the
-user's face. The compositor still calls the shots (it can refuse, revoke, or apply
-whatever policy it wants), it just no longer forces the user to be the middleman.
-Same model as Windows, macOS and X11, fit to Wayland's compositor-is-in-charge
-world.
+The application requests a specific key combination, and the compositor either
+accepts it or denies it with a reason. The application owns the binding and can
+change it at any time from its own settings; nothing is persisted and no dialog is
+shown. The compositor remains in control (it can deny a request, revoke a
+binding, or apply any policy it wants), but the user is no longer required to
+configure the trigger out-of-band. This matches the model used on Windows, macOS
+and X11, adapted to Wayland's compositor-driven design.
 
 The actual protocol (wire format, security, matching, activation) is in
 [`ext-hotkey-v1.xml`](ext-hotkey-v1.xml), with a small example client in
