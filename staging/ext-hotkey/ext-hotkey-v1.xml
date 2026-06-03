@@ -184,11 +184,11 @@
       higher-priority binding took the combination).
     </description>
 
-    <enum name="reason">
-      <description summary="why a hotkey was denied or revoked">
-        Carried by the "denied" and "revoked" events. This is a reason code, not
-        a fatal protocol error: the object remains valid and the client should
-        destroy it (or try a different combination).
+    <enum name="deny_reason">
+      <description summary="why a bind request was denied">
+        Carried by the "denied" event. This is a reason code, not a fatal
+        protocol error: the object remains valid and the client should destroy
+        it (or try a different combination).
       </description>
       <entry name="already_bound" value="0"
              summary="already held by another hotkey the compositor treats as exclusive. The compositor is not obligated to give this level of detail and can just give not_permitted as the general 'deny' reason."/>
@@ -196,6 +196,27 @@
              summary="the combination is disallowed by compositor policy"/>
       <entry name="invalid" value="2"
              summary="the keysym or combination is not a valid trigger"/>
+    </enum>
+
+    <enum name="revoke_reason">
+      <description summary="why a previously bound hotkey was withdrawn">
+        Carried by the "revoked" event. This is a reason code, not a fatal
+        protocol error: the object remains valid and the client should destroy
+        it.
+
+        The distinction is actionable: on "superseded" the combination may
+        become available again, so a client may reasonably re-request it later;
+        on "removed" the withdrawal is a deliberate user or compositor decision,
+        so a client MUST NOT silently re-request the same combination. A client
+        that receives a value it does not recognise (a future addition) MUST
+        treat it conservatively as "removed" and not auto-rebind.
+      </description>
+      <entry name="removed" value="0"
+             summary="withdrawn by the user or compositor; do not auto-rebind"/>
+      <entry name="superseded" value="1"
+             summary="a higher-priority binding took the combination; it may become available again"/>
+      <entry name="not_permitted" value="2"
+             summary="the combination is no longer allowed by compositor policy"/>
     </enum>
 
     <request name="destroy" type="destructor">
@@ -218,8 +239,17 @@
         The requested combination was not bound. No input events will be sent.
         The client should destroy this object; it may then create a new request
         with a different combination.
+
+        message is an optional, advisory, human-readable explanation in the
+        compositor's locale, intended for verbatim display in client UI (for
+        example a "change shortcut" settings screen). It may be empty, and a
+        compositor is never required to provide it. Clients MUST NOT parse it or
+        rely on its contents in any way; all programmatic behavior keys off
+        reason. A client with nowhere to show it simply ignores it.
       </description>
-      <arg name="reason" type="uint" enum="reason" summary="why it was rejected"/>
+      <arg name="reason" type="uint" enum="deny_reason" summary="why it was rejected"/>
+      <arg name="message" type="string"
+           summary="optional human-readable detail for display (may be empty)"/>
     </event>
 
     <event name="revoked">
@@ -227,8 +257,17 @@
         A binding that was previously "bound" is no longer active. No further
         input events will be sent for it. The client should destroy this object;
         it may request the combination again later.
+
+        message is an optional, advisory, human-readable explanation in the
+        compositor's locale, intended for verbatim display in client UI. It may
+        be empty, and a compositor is never required to provide it. Clients MUST
+        NOT parse it or rely on its contents in any way; all programmatic
+        behavior keys off reason. A client with nowhere to show it simply
+        ignores it.
       </description>
-      <arg name="reason" type="uint" enum="reason" summary="why it was withdrawn"/>
+      <arg name="reason" type="uint" enum="revoke_reason" summary="why it was withdrawn"/>
+      <arg name="message" type="string"
+           summary="optional human-readable detail for display (may be empty)"/>
     </event>
 
     <event name="pressed">
