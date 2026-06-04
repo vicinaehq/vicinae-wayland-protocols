@@ -16,9 +16,6 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
-#define TRIGGER_MODS                                                           \
-  (EXT_HOTKEY_MANAGER_V1_MODIFIERS_SUPER | EXT_HOTKEY_MANAGER_V1_MODIFIERS_CTRL)
-
 static struct ext_hotkey_manager_v1 *manager;
 
 static const char *deny_reason_str(uint32_t reason) {
@@ -133,18 +130,12 @@ int main(void) {
   }
 
   struct ext_hotkey_v1 *hotkey = ext_hotkey_manager_v1_bind(
-      manager, XKB_KEY_b, TRIGGER_MODS, NULL /* all seats */,
-      "com.example.ext-hotkey-demo", "Demo hotkey");
-
-  // should fail by default on niri: already bound
-  struct ext_hotkey_v1 *altTabHotkey = ext_hotkey_manager_v1_bind(
-      manager, XKB_KEY_Tab, EXT_HOTKEY_MANAGER_V1_MODIFIERS_ALT,
-      NULL /* all seats */, "com.example.ext-hotkey-demo", "");
+      manager, XKB_KEY_space, EXT_HOTKEY_MANAGER_V1_MODIFIERS_SUPER,
+      NULL /* all seats */, "com.example.ext-hotkey-demo", "Demo hotkey");
 
   ext_hotkey_v1_add_listener(hotkey, &hk_listener, NULL);
-  ext_hotkey_v1_add_listener(altTabHotkey, &hk_listener, NULL);
 
-  printf("requested Super+Ctrl+B; waiting for events (Ctrl-C to quit)...\n");
+  printf("requested Super+Space; waiting for events (Ctrl-C to quit)...\n");
 
   while (wl_display_dispatch(display) != -1)
     ;
