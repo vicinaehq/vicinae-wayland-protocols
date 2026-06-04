@@ -262,6 +262,11 @@
       <description summary="the hotkey combination was pressed">
         The bound combination was activated.
 
+        This event is sent once per activation. While the combination is held
+        down no further "pressed" events are sent, and a single "released"
+        follows when the trigger key is released: the compositor does not
+        auto-repeat the hotkey.
+
         serial is a compositor-issued input serial that counts as a recent user
         interaction, so the client can act on the hotkey even though the
         triggering key press is not otherwise delivered to it (the compositor
