@@ -10,7 +10,7 @@ like [wayland-protocols](https://gitlab.freedesktop.org/wayland/wayland-protocol
 
 | Protocol | Status | Summary |
 |---|---|---|
-| [`ext-hotkey`](staging/ext-hotkey/) | Draft | Client-managed global hotkeys: the client chooses & reconfigures its own key combos (the Windows/macOS/X11 model, a drop-in for cross-platform apps), while the compositor stays the arbiter (accept/deny/revoke). |
+| [`vicinae-hotkey`](staging/vicinae-hotkey/) | Draft | Client-managed global hotkeys: the client chooses & reconfigures its own key combos (the Windows/macOS/X11 model, a drop-in for cross-platform apps), while the compositor stays the arbiter (accept/deny/revoke). |
 
 ## Why
 

@@ -1,4 +1,4 @@
-# ext-hotkey
+# vicinae-hotkey
 
 A Wayland protocol that lets an application bind its own global hotkeys: it picks a key combination, requests to bind to it, and if successful, gets notified when it is pressed/released.
 
@@ -8,41 +8,42 @@ The whole API is one request and a handful of callbacks:
 
 ```c
 static const uint32_t super_ctrl_b_mods =
-    EXT_HOTKEY_MANAGER_V1_MODIFIERS_SUPER | EXT_HOTKEY_MANAGER_V1_MODIFIERS_CTRL;
+    VICINAE_HOTKEY_MANAGER_V1_MODIFIERS_SUPER | VICINAE_HOTKEY_MANAGER_V1_MODIFIERS_CTRL;
 
-static struct ext_hotkey_v1 *register_launcher_hotkey(
-    struct ext_hotkey_manager_v1 *manager) {
-    struct ext_hotkey_v1 *hotkey = ext_hotkey_manager_v1_bind(
+static struct vicinae_hotkey_v1 *register_launcher_hotkey(
+    struct vicinae_hotkey_manager_v1 *manager) {
+    struct vicinae_hotkey_v1 *hotkey = vicinae_hotkey_manager_v1_bind(
         manager, XKB_KEY_b, super_ctrl_b_mods, NULL,
         "com.example.app", "Toggle the launcher");
-    ext_hotkey_v1_add_listener(hotkey, &launcher_listener, NULL);
+    vicinae_hotkey_v1_add_listener(hotkey, &launcher_listener, NULL);
     return hotkey;
 }
 
-static void on_bound(void *data, struct ext_hotkey_v1 *hotkey) {
+static void on_bound(void *data, struct vicinae_hotkey_v1 *hotkey) {
     set_hotkey_active(true);
 }
 
-static void on_pressed(void *data, struct ext_hotkey_v1 *hotkey,
+static void on_pressed(void *data, struct vicinae_hotkey_v1 *hotkey,
                        uint32_t serial, uint32_t time) {
     toggle_launcher(serial);
 }
 
-static void on_released(void *data, struct ext_hotkey_v1 *hotkey,
+static void on_released(void *data, struct vicinae_hotkey_v1 *hotkey,
                         uint32_t serial, uint32_t time) {
+    // useful for push to talk stuff!
 }
 
-static void on_denied(void *data, struct ext_hotkey_v1 *hotkey,
+static void on_denied(void *data, struct vicinae_hotkey_v1 *hotkey,
                       uint32_t reason, const char *message) {
     printf("hotkey denied (reason %u): %s\n", reason, message);
-    ext_hotkey_v1_destroy(hotkey);
+    vicinae_hotkey_v1_destroy(hotkey);
 }
 
-static void on_revoked(void *data, struct ext_hotkey_v1 *hotkey,
+static void on_revoked(void *data, struct vicinae_hotkey_v1 *hotkey,
                        uint32_t reason, const char *message) {
     set_hotkey_active(false);
     printf("hotkey revoked (reason %u): %s\n", reason, message);
-    ext_hotkey_v1_destroy(hotkey);
+    vicinae_hotkey_v1_destroy(hotkey);
 }
 ```
 
@@ -100,5 +101,5 @@ configure the trigger out-of-band. This matches the model used on Windows, macOS
 and X11, adapted to Wayland's compositor-driven design.
 
 The actual protocol (wire format, security, matching, activation) is in
-[`ext-hotkey-v1.xml`](ext-hotkey-v1.xml), with a small example client in
+[`vicinae-hotkey-v1.xml`](vicinae-hotkey-v1.xml), with a small example client in
 [`../../examples`](../../examples).
